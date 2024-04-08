@@ -34,8 +34,30 @@ dependencies {
 
     runtimeOnly 'com.microsoft.sqlserver:mssql-jdbc'
     runtimeOnly 'com.mysql:mysql-connector-j'
+
+    // QueryDSL
+    implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
+    annotationProcessor 'com.querydsl:querydsl-apt:5.1.0:jakarta'
+    annotationProcessor "jakarta.annotation:jakarta.annotation-api"
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+// Querydsl 설정 시작
+def generated = 'src/main/generated'
+
+tasks.withType(JavaCompile).configureEach {
+    options.generatedSourceOutputDirectory = file(generated)
+}
+
+sourceSets {
+    main.java.srcDirs += "$projectDir/$generated"
+}
+
+clean {
+    delete file('src/main/generated')
+}
+// Querydsl 설정 끝

@@ -1,8 +1,10 @@
 package com.jehoon.tutorial.controller;
 
+import com.jehoon.tutorial.dto.SensorSelectRequest;
 import com.jehoon.tutorial.entity.Sensor;
 import com.jehoon.tutorial.service.SensorService;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -11,11 +13,12 @@ import java.util.List;
 @RequestMapping("api/sensor")
 @RequiredArgsConstructor
 public class SensorController {
+
     private final SensorService sensorService;
 
     @GetMapping
-    public List<Sensor> select() {
-        return sensorService.select();
+    public List<Sensor> select(@ParameterObject SensorSelectRequest param) {
+        return sensorService.select(param);
     }
 
     @PostMapping

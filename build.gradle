@@ -65,3 +65,8 @@ clean {
     delete file('src/main/generated')
 }
 // Querydsl 설정 끝
+
+// **--plain.jar 생성 방지
+jar {
+    enabled = false
+}

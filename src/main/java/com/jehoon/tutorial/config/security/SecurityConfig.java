@@ -8,12 +8,14 @@ import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.JWSVerificationKeySelector;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jwt.proc.DefaultJWTProcessor;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -23,77 +25,66 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
-import java.security.KeyPairGenerator;
-import java.security.SecureRandom;
-import java.security.interfaces.RSAPrivateKey;
-import java.security.interfaces.RSAPublicKey;
-import java.util.UUID;
-
 @Configuration
+@RequiredArgsConstructor
 public class SecurityConfig {
-    @Bean
-    PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
 
-    @Bean
-    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        return http
+  private final RSAKey rsaKey;
 
-                // CORS CSRF 미사용처리
-                .cors(AbstractHttpConfigurer::disable)
-                .csrf(AbstractHttpConfigurer::disable)
+  @Bean
+  PasswordEncoder passwordEncoder() {
+    return new BCryptPasswordEncoder();
+  }
 
-                // Session 상태 없이 변경
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+  @Bean
+  SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    return http
 
-                // Jwt 인증 설정
-                .oauth2ResourceServer(resourceServerConfig -> resourceServerConfig
-                        .jwt(Customizer.withDefaults()))
+        // CORS CSRF 미사용처리
+        .cors(AbstractHttpConfigurer::disable)
+        .csrf(AbstractHttpConfigurer::disable)
 
-                // Endpoint 권한 설정
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.GET, "/api/v3/api-docs/*").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/swagger-ui/*").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/h2/**").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .anyRequest().authenticated()
-                )
+        // Session 상태 없이 변경
+        .sessionManagement(session -> session
+            .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                .build();
-    }
+        // Jwt 인증 설정
+        .oauth2ResourceServer(resourceServerConfig -> resourceServerConfig
+            .jwt(Customizer.withDefaults()))
 
-    @Bean
-    JWKSource<SecurityContext> jwkSource() {
-        try {
-            var keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-            keyPairGenerator.initialize(2048, new SecureRandom());
-            var keyPair = keyPairGenerator.genKeyPair();
-            var publicKey = (RSAPublicKey) keyPair.getPublic();
-            var privateKey = (RSAPrivateKey) keyPair.getPrivate();
-            var rsaKey = new RSAKey
-                    .Builder(publicKey)
-                    .privateKey(privateKey)
-                    .keyID(UUID.randomUUID().toString())
-                    .build();
-            var jwkSet = new JWKSet(rsaKey);
-            return new ImmutableJWKSet<>(jwkSet);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
+        // 동일도메인 iframe 접근 활성화
+        .headers(header -> header
+            .frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
 
-    @Bean
-    JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
-        var jwtProcessor = new DefaultJWTProcessor<>();
-        var jwsKeySelector = new JWSVerificationKeySelector<>(JWSAlgorithm.Family.RSA, jwkSource);
-        jwtProcessor.setJWSKeySelector(jwsKeySelector);
-        return new NimbusJwtDecoder(jwtProcessor);
-    }
+        // Endpoint 권한 설정
+        .authorizeHttpRequests(auth -> auth
+            .requestMatchers(HttpMethod.GET, "/api/v3/api-docs/*").permitAll()
+            .requestMatchers(HttpMethod.GET, "/swagger-ui/*").permitAll()
+            .requestMatchers(HttpMethod.GET, "/h2/**").permitAll()
+            .requestMatchers("/api/auth/**").permitAll()
+            .anyRequest().authenticated()
+        )
 
-    @Bean
-    JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwkSource) {
-        return new NimbusJwtEncoder(jwkSource);
-    }
+        .build();
+  }
+
+  @Bean
+  JWKSource<SecurityContext> jwkSource() {
+    return new ImmutableJWKSet<>(
+        new JWKSet(this.rsaKey)
+    );
+  }
+
+  @Bean
+  JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
+    var jwtProcessor = new DefaultJWTProcessor<>();
+    var jwsKeySelector = new JWSVerificationKeySelector<>(JWSAlgorithm.Family.RSA, jwkSource);
+    jwtProcessor.setJWSKeySelector(jwsKeySelector);
+    return new NimbusJwtDecoder(jwtProcessor);
+  }
+
+  @Bean
+  JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwkSource) {
+    return new NimbusJwtEncoder(jwkSource);
+  }
 }
